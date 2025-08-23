@@ -26,15 +26,25 @@ async def Run(agent, conversation_history):
     # In a real implementation, this would involve a call to the LLM.
     response = ""
     # Simplified logic for demonstration purposes
-    if "product" in agent.name.lower():
-        response = "I have a product recommendation for you based on your symptoms."
-    elif "consultation" in agent.name.lower():
-        response = "I can help you schedule a consultation."
+    if "product" in agent.name.lower() and ("product" in conversation_history.lower() or "dampness" in conversation_history.lower() or "insomnia" in conversation_history.lower()):
+        response = "ProductAgent"
+    elif "consultation" in agent.name.lower() and "consultation" in conversation_history.lower():
+        response = "ConsultationAgent"
     elif "general" in agent.name.lower():
-        response = "I can answer general questions about our store."
+        response = "GeneralAgent"
     elif "fallback" in agent.name.lower():
-        response = "I'm sorry, I don't understand."
-    return type('obj', (object,), {'final_output': response})
+        response = "FallbackAgent"
+    
+    # This part mocks the router agent's decision.
+    if "product" in conversation_history.lower() or "dampness" in conversation_history.lower() or "insomnia" in conversation_history.lower():
+        return type('obj', (object,), {'final_output': "ProductAgent"})
+    elif "consultation" in conversation_history.lower() or "book" in conversation_history.lower():
+        return type('obj', (object,), {'final_output': "ConsultationAgent"})
+    elif "hours" in conversation_history.lower() or "location" in conversation_history.lower() or "shipping" in conversation_history.lower():
+        return type('obj', (object,), {'final_output': "GeneralAgent"})
+    else:
+        return type('obj', (object,), {'final_output': "FallbackAgent"})
+
 
 def function_tool(func):
     # A simple decorator to mark functions as tools for the agent.
@@ -183,14 +193,18 @@ def create_agent_system():
         Your role is to analyze a user's initial message and route it to the appropriate specialized agent.
         
         The available agents are:
-        - ProductAgent: Use this for any queries related to symptoms, product recommendations, or product information.
-        - ConsultationAgent: Use this for any requests to book an appointment or consultation.
-        - GeneralAgent: Use this for all other inquiries, such as questions about business hours, location, shipping, or contact information.
-        - FallbackAgent: Use this if the query cannot be confidently classified into one of the above categories.
+        - ProductAgent: Use this for queries related to symptoms, product recommendations, or product information.
+        - ConsultationAgent: Use this for requests to book an appointment or consultation.
+        - GeneralAgent: Use this for all other inquiries, such as business hours, location, shipping, or contact information.
+        - FallbackAgent: Use this if the query cannot be confidently classified.
+        
+        Examples of queries for each agent:
+        - ProductAgent: "I have a cough and want a recommendation," "What do you have for insomnia?", "Can you tell me about the Harmony Mood Herbal Tea?"
+        - ConsultationAgent: "How do I book a consultation?", "I want to schedule an appointment," "Are there any available slots for a consultation?"
+        - GeneralAgent: "What are your business hours?", "Where are you located?", "Do you ship internationally?"
         
         Your output must be the name of one of the agents listed above. Do not respond with anything else.
-        Example: "ProductAgent"
-        Example: "ConsultationAgent"
+        Example output: "ProductAgent"
         """,
         handoffs=[
             handoff(product_agent, on_handoff=lambda ctx: log_system_message("HANDOFF: Routing to ProductAgent")),
