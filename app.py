@@ -29,12 +29,13 @@ async def Run(agent, conversation_history):
     # This part mocks the router agent's decision based on keywords
     input_lower = conversation_history.lower()
     
-    # Check for product-related keywords
-    if "product" in input_lower or "dampness" in input_lower or "insomnia" in input_lower or "cold hands" in input_lower or "recommend" in input_lower or "fatigue" in input_lower or "circulation" in input_lower:
+    # Check for product-related keywords. This logic is much more robust now.
+    product_keywords = ["product", "dampness", "insomnia", "cold hands", "recommend", "fatigue", "circulation", "tea", "soak", "patch", "soup"]
+    if any(keyword in input_lower for keyword in product_keywords):
         return type('obj', (object,), {'final_output': "ProductAgent"})
     
     # Check for consultation-related keywords
-    elif "consultation" in input_lower or "book" in input_lower or "schedule" in input_lower:
+    elif "consultation" in input_lower or "book" in input_lower or "schedule" in input_lower or "appointment" in input_lower:
         return type('obj', (object,), {'final_output': "ConsultationAgent"})
         
     # Check for general keywords
@@ -60,6 +61,7 @@ def handoff(agent, on_handoff):
 # Load environment variables (we will hardcode our data here instead)
 # OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_API_KEY = "sk-...0UwA" 
+
 if not OPENAI_API_KEY:
     st.error("OpenAI API Key not configured. Please add it to your .env file or hardcode it.")
     st.stop()
