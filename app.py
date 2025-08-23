@@ -129,7 +129,7 @@ def create_agent_system():
     """Create and configure all agents for the TCM shop."""
     
     # Define the model to use. You can change this to "gpt-4o-mini" or any other model name.
-    MODEL_NAME = "gpt-4o-mini"
+    # The model parameter has been removed from the Agent constructor to fix the TypeError.
     
     # The Product Agent uses our hardcoded product data via a Python tool.
     product_agent = Agent(
@@ -142,8 +142,7 @@ def create_agent_system():
         symptoms as the input. Do not make up product names or descriptions.
         If no products match, politely inform the user.
         """,
-        tools=[function_tool(get_product_info)],
-        model=MODEL_NAME
+        tools=[function_tool(get_product_info)]
     )
     
     # The Consultation Agent redirects the user to a booking page.
@@ -156,8 +155,7 @@ def create_agent_system():
         When a user asks to book a consultation, use the `redirect_to_booking_page` tool with the URL
         'https://www.betterfortoday.com/book-a-consultation' to provide them with a direct link.
         """,
-        tools=[function_tool(redirect_to_booking_page)],
-        model=MODEL_NAME
+        tools=[function_tool(redirect_to_booking_page)]
     )
     
     # The General Agent handles all other queries and FAQs.
@@ -176,8 +174,7 @@ def create_agent_system():
         If a user asks about a product, hand off to the ProductAgent.
         If a user asks about booking, hand off to the ConsultationAgent.
         """,
-        tools=[], # No special tools needed, just information retrieval from prompt
-        model=MODEL_NAME
+        tools=[] # No special tools needed, just information retrieval from prompt
     )
 
     # The Fallback Agent for unclassified queries.
@@ -191,8 +188,7 @@ def create_agent_system():
         Suggest that they rephrase their query or contact a human for more complex issues.
         The human contact email is support@tcmshop.com.
         """,
-        tools=[],
-        model=MODEL_NAME
+        tools=[]
     )
     
     # The main router agent orchestrates all other agents.
@@ -222,8 +218,7 @@ def create_agent_system():
             handoff(consultation_agent, on_handoff=lambda ctx: log_system_message("HANDOFF: Routing to ConsultationAgent")),
             handoff(general_agent, on_handoff=lambda ctx: log_system_message("HANDOFF: Routing to GeneralAgent")),
             handoff(fallback_agent, on_handoff=lambda ctx: log_system_message("HANDOFF: Routing to FallbackAgent"))
-        ],
-        model=MODEL_NAME
+        ]
     )
     
     return main_router_agent
