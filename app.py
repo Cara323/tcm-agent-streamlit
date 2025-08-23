@@ -25,23 +25,23 @@ async def Run(agent, conversation_history):
     # This is a mock function to simulate the agent's response.
     # In a real implementation, this would involve a call to the LLM.
     response = ""
-    # Simplified logic for demonstration purposes
-    if "product" in agent.name.lower() and ("product" in conversation_history.lower() or "dampness" in conversation_history.lower() or "insomnia" in conversation_history.lower()):
-        response = "ProductAgent"
-    elif "consultation" in agent.name.lower() and "consultation" in conversation_history.lower():
-        response = "ConsultationAgent"
-    elif "general" in agent.name.lower() and ("hours" in conversation_history.lower() or "location" in conversation_history.lower() or "shipping" in conversation_history.lower()):
-        response = "GeneralAgent"
-    elif "fallback" in agent.name.lower():
-        response = "FallbackAgent"
     
-    # This part mocks the router agent's decision.
-    if "product" in conversation_history.lower() or "dampness" in conversation_history.lower() or "insomnia" in conversation_history.lower():
+    # This part mocks the router agent's decision based on keywords
+    input_lower = conversation_history.lower()
+    
+    # Check for product-related keywords
+    if "product" in input_lower or "dampness" in input_lower or "insomnia" in input_lower or "cold hands" in input_lower or "recommend" in input_lower or "fatigue" in input_lower or "circulation" in input_lower:
         return type('obj', (object,), {'final_output': "ProductAgent"})
-    elif "consultation" in conversation_history.lower() or "book" in conversation_history.lower():
+    
+    # Check for consultation-related keywords
+    elif "consultation" in input_lower or "book" in input_lower or "schedule" in input_lower:
         return type('obj', (object,), {'final_output': "ConsultationAgent"})
-    elif "hours" in conversation_history.lower() or "location" in conversation_history.lower() or "shipping" in conversation_history.lower():
+        
+    # Check for general keywords
+    elif "hours" in input_lower or "location" in input_lower or "shipping" in input_lower or "business" in input_lower:
         return type('obj', (object,), {'final_output': "GeneralAgent"})
+        
+    # Default to Fallback
     else:
         return type('obj', (object,), {'final_output': "FallbackAgent"})
 
@@ -60,7 +60,6 @@ def handoff(agent, on_handoff):
 # Load environment variables (we will hardcode our data here instead)
 # OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_API_KEY = "sk-...0UwA" 
-
 if not OPENAI_API_KEY:
     st.error("OpenAI API Key not configured. Please add it to your .env file or hardcode it.")
     st.stop()
@@ -97,7 +96,7 @@ def get_product_info(symptoms: str) -> str:
     matching_products = []
     
     # Split the input string into a list of keywords
-    search_keywords = [keyword.strip().lower() for keyword in symptoms.split(',')]
+    search_keywords = [keyword.strip().lower() for keyword in symptoms.replace(' and ', ',').split(',')]
     
     for product in TCM_PRODUCTS:
         product_used_for = product["Used For"].lower()
