@@ -4,66 +4,100 @@ import asyncio
 import pandas as pd
 import streamlit as st
 import re
+import json
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Callable
 
-# A placeholder for the actual `agents` module and its classes.
-# In a real-world scenario, you would import these from a local file.
+# ============================================================================
+# MOCK AGENT FRAMEWORK CLASSES (These are placeholders for a real framework)
+# ============================================================================
+
 class RunContextWrapper:
     def __init__(self, conversation_history, messages):
         self.conversation_history = conversation_history
         self.messages = messages
 
 class Agent:
-    def __init__(self, name, instructions, tools=None, handoffs=None):
+    def __init__(self, name, instructions, tools=None, handoffs=None, model="gpt-4o-mini"):
         self.name = name
         self.instructions = instructions
         self.tools = tools if tools is not None else []
         self.handoffs = handoffs if handoffs is not None else []
+        self.model = model
 
-async def Run(agent, conversation_history):
-    # This is a mock function to simulate the agent's response.
-    # In a real implementation, this would involve a call to the LLM.
-    response = ""
-    
-    # This part mocks the router agent's decision based on keywords
-    input_lower = conversation_history.lower()
-    
-    # Check for product-related keywords. This logic is much more robust now.
-    product_keywords = ["product", "dampness", "insomnia", "cold hands", "recommend", "fatigue", "circulation", "tea", "soak", "patch", "soup"]
-    if any(keyword in input_lower for keyword in product_keywords):
-        return type('obj', (object,), {'final_output': "ProductAgent"})
-    
-    # Check for consultation-related keywords
-    elif "consultation" in input_lower or "book" in input_lower or "schedule" in input_lower or "appointment" in input_lower:
-        return type('obj', (object,), {'final_output': "ConsultationAgent"})
-        
-    # Check for general keywords
-    elif "hours" in input_lower or "location" in input_lower or "shipping" in input_lower or "business" in input_lower:
-        return type('obj', (object,), {'final_output': "GeneralAgent"})
-        
-    # Default to Fallback
-    else:
-        return type('obj', (object,), {'final_output': "FallbackAgent"})
-
-
-def function_tool(func):
-    # A simple decorator to mark functions as tools for the agent.
+def function_tool(func: Callable):
+    """A decorator to add a tool schema to a function for use with an LLM."""
+    # This is a simplified mock of how a tool schema is created.
+    # In a real framework, this would be more complex.
+    schema = {
+        "type": "function",
+        "function": {
+            "name": func.__name__,
+            "description": func.__doc__,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    name: {"type": "string"} for name in func.__annotations__
+                },
+                "required": list(func.__annotations__.keys())
+            }
+        }
+    }
+    func.tool_schema = schema
     return func
 
-def handoff(agent, on_handoff):
+def handoff(agent, on_handoff: Callable):
     return (agent, on_handoff)
+
+async def Run(agent: Agent, conversation_history: str):
+    """
+    Simulates the agent runner by making a live LLM call.
+    This replaces our previous mock function.
+    """
+    log_system_message(f"LLM: Running agent '{agent.name}' with model '{agent.model}'")
+    
+    client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    
+    # Construct the message history for the LLM
+    messages = [
+        {"role": "system", "content": agent.instructions},
+        {"role": "user", "content": conversation_history}
+    ]
+    
+    # Add tools if the agent has any
+    tools = [tool.tool_schema for tool in agent.tools] if agent.tools else None
+    
+    try:
+        response = await client.chat.completions.create(
+            model=agent.model,
+            messages=messages,
+            tools=tools
+        )
+        
+        # Get the final output from the LLM's response
+        final_output = response.choices[0].message.content
+        return type('obj', (object,), {'final_output': final_output})
+
+    except openai.APIError as e:
+        error_msg = f"OpenAI API Error: {e.message}"
+        log_system_message(f"LLM ERROR: {error_msg}")
+        return type('obj', (object,), {'final_output': "An error occurred with the AI. Please try again."})
+    except Exception as e:
+        error_msg = f"Unexpected Error: {str(e)}"
+        log_system_message(f"LLM ERROR: {error_msg}")
+        return type('obj', (object,), {'final_output': "An unexpected error occurred. Please try again."})
+
 
 # ============================================================================
 # CONFIGURATION AND SETUP
 # ============================================================================
 
 # Load environment variables (we will hardcode our data here instead)
-# OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_API_KEY = "YOUR_OPENAI_API_KEY_HERE" # Use a placeholder for the immersive
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not OPENAI_API_KEY:
-    st.error("OpenAI API Key not configured. Please add it to your .env file or hardcode it.")
+    # A placeholder message for local testing. In a deployed app, you need a key.
+    st.error("OpenAI API Key not configured. Please add it to your environment.")
     st.stop()
     
 # Hardcoded TCM Product Database
@@ -89,10 +123,11 @@ def log_system_message(message):
     timestamp = datetime.now().strftime("%H:%M:%S")
     st.session_state['system_logs'].append(f"[{timestamp}] {message}")
 
+@function_tool
 def get_product_info(symptoms: str) -> str:
     """
-    Search for TCM products based on a list of symptoms.
-    This function acts as our shared memory/database for the ProductAgent.
+    Searches for TCM products based on a list of symptoms.
+    This tool is used by the ProductAgent.
     """
     log_system_message(f"TOOL: Searching products for symptoms: {symptoms}")
     matching_products = []
@@ -116,8 +151,11 @@ def get_product_info(symptoms: str) -> str:
     
     return formatted_output
 
+@function_tool
 def redirect_to_booking_page(url: str) -> str:
-    """Provides a formatted link for users to book a consultation."""
+    """Provides a formatted link for users to book a consultation.
+    This tool is used by the ConsultationAgent.
+    """
     log_system_message(f"TOOL: Providing booking link: {url}")
     return f"You can book your consultation here: {url}"
 
@@ -127,9 +165,6 @@ def redirect_to_booking_page(url: str) -> str:
 
 def create_agent_system():
     """Create and configure all agents for the TCM shop."""
-    
-    # Define the model to use. You can change this to "gpt-4o-mini" or any other model name.
-    # The model parameter has been removed from the Agent constructor to fix the TypeError.
     
     # The Product Agent uses our hardcoded product data via a Python tool.
     product_agent = Agent(
@@ -141,8 +176,7 @@ def create_agent_system():
         When a user describes their symptoms, use the `get_product_info` tool with the user's
         symptoms as the input. Do not make up product names or descriptions.
         If no products match, politely inform the user.
-        """,
-        tools=[function_tool(get_product_info)]
+        """
     )
     
     # The Consultation Agent redirects the user to a booking page.
@@ -154,8 +188,7 @@ def create_agent_system():
         
         When a user asks to book a consultation, use the `redirect_to_booking_page` tool with the URL
         'https://www.betterfortoday.com/book-a-consultation' to provide them with a direct link.
-        """,
-        tools=[function_tool(redirect_to_booking_page)]
+        """
     )
     
     # The General Agent handles all other queries and FAQs.
@@ -212,13 +245,7 @@ def create_agent_system():
         
         Your output must be the name of one of the agents listed above. Do not respond with anything else.
         Example output: "ProductAgent"
-        """,
-        handoffs=[
-            handoff(product_agent, on_handoff=lambda ctx: log_system_message("HANDOFF: Routing to ProductAgent")),
-            handoff(consultation_agent, on_handoff=lambda ctx: log_system_message("HANDOFF: Routing to ConsultationAgent")),
-            handoff(general_agent, on_handoff=lambda ctx: log_system_message("HANDOFF: Routing to GeneralAgent")),
-            handoff(fallback_agent, on_handoff=lambda ctx: log_system_message("HANDOFF: Routing to FallbackAgent"))
-        ]
+        """
     )
     
     return main_router_agent
