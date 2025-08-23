@@ -59,7 +59,7 @@ def handoff(agent, on_handoff):
 
 # Load environment variables (we will hardcode our data here instead)
 # OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_API_KEY = "YOUR_OPENAI_API_KEY_HERE" # Use a placeholder for the immersive
+OPENAI_API_KEY = "sk-...0UwA" # Use a placeholder for the immersive
 
 if not OPENAI_API_KEY:
     st.error("OpenAI API Key not configured. Please add it to your .env file or hardcode it.")
@@ -135,4 +135,23 @@ def create_agent_system():
         Your task is to recommend products from a provided list based on the user's symptoms.
         
         When a user describes their symptoms, use the `get_product_info` tool with the user's
-        symptoms as the input. Do not make up product names or description.
+        symptoms as the input. Do not make up product names or descriptions.
+        If no products match, politely inform the user.
+        """,
+        tools=[function_tool(get_product_info)]
+    )
+    
+    # The Consultation Agent redirects the user to a booking page.
+    consultation_agent = Agent(
+        name="ConsultationAgent",
+        instructions="""
+        You are a consultation booking assistant for a TCM clinic.
+        Your task is to help the user book a consultation.
+        
+        When a user asks to book a consultation, use the `redirect_to_booking_page` tool with the URL
+        'https://www.betterfortoday.com/book-a-consultation' to provide them with a direct link.
+        """,
+        tools=[function_tool(redirect_to_booking_page)]
+    )
+    
+    # The Gene
