@@ -59,8 +59,11 @@ async def Run(agent: Agent, conversation_history: str):
     input_lower = conversation_history.lower()
     
     # Improved logic to detect various ways of asking about products
-    product_keywords = ["product", "dampness", "insomnia", "cold hands", "recommend", "fatigue", "circulation", "tea", "soak", "patch", "soup"]
-    if any(keyword in input_lower for keyword in product_keywords) or "tell me about" in input_lower:
+    # This now correctly handles product names and symptoms.
+    product_keywords = ["product", "dampness", "insomnia", "cold hands", "recommend", "fatigue", "circulation", "tea", "soak", "patch", "soup", "herbal"]
+    product_names_in_query = any(name.lower() in input_lower for name in [p["Product Name"] for p in TCM_PRODUCTS])
+
+    if any(keyword in input_lower for keyword in product_keywords) or product_names_in_query:
         return type('obj', (object,), {'final_output': "ProductAgent"})
     
     # Check for consultation-related keywords
@@ -68,7 +71,7 @@ async def Run(agent: Agent, conversation_history: str):
         return type('obj', (object,), {'final_output': "ConsultationAgent"})
         
     # Check for general keywords
-    elif "hours" in input_lower or "location" in input_lower or "shipping" in input_lower or "business" in input_lower:
+    elif "hours" in input_lower or "location" in input_lower or "shipping" in input_lower or "business" in input_lower or "contact" in input_lower:
         return type('obj', (object,), {'final_output': "GeneralAgent"})
         
     # Default to Fallback
@@ -165,7 +168,8 @@ def redirect_to_booking_page(url: str) -> str:
 def create_agent_system():
     """Create and configure all agents for the TCM shop."""
     
-    # Define the model to use. You can change this to "gpt-4o-mini" or any other model name.
+    # Define the model to use.
+    MODEL_NAME = "gpt-4o-mini"
     
     # The Product Agent uses our hardcoded product data via a Python tool.
     product_agent = Agent(
@@ -177,7 +181,9 @@ def create_agent_system():
         When a user describes their symptoms, use the `get_product_info` tool with the user's
         symptoms as the input. Do not make up product names or descriptions.
         If no products match, politely inform the user.
-        """
+        """,
+        tools=[function_tool(get_product_info)],
+        model=MODEL_NAME
     )
     
     # The Consultation Agent redirects the user to a booking page.
@@ -189,7 +195,9 @@ def create_agent_system():
         
         When a user asks to book a consultation, use the `redirect_to_booking_page` tool with the URL
         'https://www.betterfortoday.com/book-a-consultation' to provide them with a direct link.
-        """
+        """,
+        tools=[function_tool(redirect_to_booking_page)],
+        model=MODEL_NAME
     )
     
     # The General Agent handles all other queries and FAQs.
@@ -208,7 +216,8 @@ def create_agent_system():
         If a user asks about a product, hand off to the ProductAgent.
         If a user asks about booking, hand off to the ConsultationAgent.
         """,
-        tools=[] # No special tools needed, just information retrieval from prompt
+        tools=[], # No special tools needed, just information retrieval from prompt
+        model=MODEL_NAME
     )
 
     # The Fallback Agent for unclassified queries.
@@ -222,7 +231,8 @@ def create_agent_system():
         Suggest that they rephrase their query or contact a human for more complex issues.
         The human contact email is support@tcmshop.com.
         """,
-        tools=[]
+        tools=[],
+        model=MODEL_NAME
     )
     
     # The main router agent orchestrates all other agents.
@@ -241,7 +251,14 @@ def create_agent_system():
         
         Your output must be the name of one of the agents listed above. Do not respond with anything else.
         Example output: "ProductAgent"
-        """
+        """,
+        handoffs=[
+            handoff(product_agent, on_handoff=lambda ctx: log_system_message("HANDOFF: Routing to ProductAgent")),
+            handoff(consultation_agent, on_handoff=lambda ctx: log_system_message("HANDOFF: Routing to ConsultationAgent")),
+            handoff(general_agent, on_handoff=lambda ctx: log_system_message("HANDOFF: Routing to GeneralAgent")),
+            handoff(fallback_agent, on_handoff=lambda ctx: log_system_message("HANDOFF: Routing to FallbackAgent"))
+        ],
+        model=MODEL_NAME
     )
     
     return main_router_agent
