@@ -59,7 +59,7 @@ async def Run(agent: Agent, conversation_history: str):
     input_lower = conversation_history.lower()
     
     # Check for specific product names or a broad product-related query
-    product_keywords = ["product", "recommend", "remedy", "what do you have for"]
+    product_keywords = ["product", "recommend", "remedy", "what do you have for", "tell me about", "help with", "dampness", "insomnia", "cold hands", "fatigue", "circulation", "tea", "soak", "patch", "soup", "herbal"]
     product_names = [p["Product Name"].lower() for p in TCM_PRODUCTS]
 
     if any(keyword in input_lower for keyword in product_keywords) or any(name in input_lower for name in product_names):
@@ -174,12 +174,12 @@ def create_agent_system():
     product_agent = Agent(
         name="ProductAgent",
         instructions="""
-        You are a traditional Chinese medicine (TCM) product expert.
-        Your task is to recommend products from a provided list based on the user's symptoms.
-        
-        When a user describes their symptoms, use the `get_product_info` tool with the user's
-        symptoms as the input. Do not make up product names or descriptions.
-        If no products match, politely inform the user.
+        ROLE: You are the ProductAgent in a multi-agent system for a TCM shop.
+        TASK: Recommend products from a provided list based on the user's symptoms.
+        INPUT: A string containing the user's symptoms or a query about a specific product.
+        OUTPUT: A formatted string listing one or more product recommendations. If no products are found, state that politely.
+        CONSTRAINTS: Do not make up product names, descriptions, or uses. Only use information from the provided knowledge base.
+        CAPABILITIES & REMINDERS: Use the `get_product_info` tool to search for products. The input for this tool should be the user's symptoms.
         """,
         tools=[function_tool(get_product_info)],
         model=MODEL_NAME
@@ -189,11 +189,12 @@ def create_agent_system():
     consultation_agent = Agent(
         name="ConsultationAgent",
         instructions="""
-        You are a consultation booking assistant for a TCM clinic.
-        Your task is to help the user book a consultation.
-        
-        When a user asks to book a consultation, use the `redirect_to_booking_page` tool with the URL
-        'https://www.betterfortoday.com/book-a-consultation' to provide them with a direct link.
+        ROLE: You are the ConsultationAgent in a multi-agent system for a TCM shop.
+        TASK: Help the user book a consultation.
+        INPUT: A string from the user indicating they want to book a consultation.
+        OUTPUT: A formatted string with a direct link to the booking page.
+        CONSTRAINTS: Do not generate a booking form or try to schedule an appointment directly. Only provide the link.
+        CAPABILITIES & REMINDERS: Use the `redirect_to_booking_page` tool with the URL 'https://www.betterfortoday.com/book-a-consultation' as the input.
         """,
         tools=[function_tool(redirect_to_booking_page)],
         model=MODEL_NAME
@@ -203,17 +204,16 @@ def create_agent_system():
     general_agent = Agent(
         name="GeneralAgent",
         instructions="""
-        You are a customer service representative for a TCM shop.
-        Your task is to answer general questions about the shop, such as business hours, location, or shipping.
-        
-        Use the following information to answer user questions:
+        ROLE: You are the GeneralAgent in a multi-agent system for a TCM shop.
+        TASK: Answer general questions about the shop.
+        INPUT: A string from the user containing a general inquiry.
+        OUTPUT: A clear and concise answer to the user's question.
+        CONSTRAINTS: Only use the following information. Do not search the web or make up details.
+        CAPABILITIES & REMINDERS:
         - Business Hours: Monday to Friday, 9:00 AM - 6:00 PM. We are closed on weekends and public holidays.
         - Location: 123 Herb Street, Singapore, 123456.
         - Shipping: We offer free local shipping for orders above $50. International shipping is also available.
         - Contact: You can reach us at contact@tcmshop.com or call us at +65 1234 5678.
-        
-        If a user asks about a product, hand off to the ProductAgent.
-        If a user asks about booking, hand off to the ConsultationAgent.
         """,
         tools=[], # No special tools needed, just information retrieval from prompt
         model=MODEL_NAME
@@ -223,12 +223,12 @@ def create_agent_system():
     fallback_agent = Agent(
         name="FallbackAgent",
         instructions="""
-        You are a fallback assistant for a TCM shop.
-        Your task is to provide a polite and helpful response when the user's query cannot be classified by the main agents.
-        
-        Acknowledge the user's message and explain that you could not understand their request.
-        Suggest that they rephrase their query or contact a human for more complex issues.
-        The human contact email is support@tcmshop.com.
+        ROLE: You are the FallbackAgent in a multi-agent system for a TCM shop.
+        TASK: Provide a polite and helpful response when the user's query cannot be classified.
+        INPUT: A string from the user that was not understood by the main router.
+        OUTPUT: A polite and clear message that acknowledges the user's query and suggests they rephrase it or contact a human.
+        CONSTRAINTS: Acknowledge the user's message and explain that you could not understand their request.
+        CAPABILITIES & REMINDERS: The human contact email is support@tcmshop.com.
         """,
         tools=[],
         model=MODEL_NAME
@@ -239,17 +239,16 @@ def create_agent_system():
     main_router_agent = Agent(
         name="MainRouter",
         instructions=f"""
-        You are the main router for a TCM shop multi-agent system.
-        Your role is to analyze a user's initial message and route it to the appropriate specialized agent.
-        
-        The available agents are:
-        - ProductAgent: Use this for queries related to symptoms, product recommendations, or product information.
-        - ConsultationAgent: Use this for requests to book an appointment or consultation.
-        - GeneralAgent: Use this for all other inquiries, such as business hours, location, shipping, or contact information.
-        - FallbackAgent: Use this if the query cannot be confidently classified.
-        
-        Your output must be the name of one of the agents listed above. Do not respond with anything else.
-        Example output: "ProductAgent"
+        ROLE: You are the MainRouter in a multi-agent system for a TCM shop.
+        TASK: Analyze a user's initial message and route it to the appropriate specialized agent.
+        INPUT: A natural language string from a user.
+        OUTPUT: The name of one of the specialized agents. Do not respond with anything else.
+        CONSTRAINTS: The output must be one of these exact strings: "ProductAgent", "ConsultationAgent", "GeneralAgent", or "FallbackAgent".
+        CAPABILITIES & REMINDERS:
+        - ProductAgent: Use for product recommendations or inquiries. E.g., "What do you have for insomnia?", "Can you tell me about this product?", "I have a cough."
+        - ConsultationAgent: Use for booking or scheduling requests. E.g., "How do I book an appointment?", "I want to schedule a consultation."
+        - GeneralAgent: Use for general business questions. E.g., "What are your business hours?", "Where are you located?"
+        - FallbackAgent: Use for any query that does not fit the above categories.
         """,
         handoffs=[
             handoff(product_agent, on_handoff=lambda ctx: log_system_message("HANDOFF: Routing to ProductAgent")),
