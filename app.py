@@ -123,9 +123,6 @@ def get_product_info(symptoms: str) -> str:
     log_system_message(f"TOOL: Searching products for symptoms: {symptoms}")
     matching_products = []
     
-    # Split the input string into a list of keywords
-    search_keywords = [keyword.strip().lower() for keyword in symptoms.replace(' and ', ',').split(',')]
-    
     # Check for specific product names in the query to handle "tell me about"
     product_names = [p["Product Name"].lower() for p in TCM_PRODUCTS]
     for name in product_names:
@@ -136,6 +133,8 @@ def get_product_info(symptoms: str) -> str:
                     return f"Found the following product:\n- **{p['Product Name']}**: {p['Description']} (Used for: {p['Used For']})\n"
     
     # If no specific product name is found, fall back to searching by symptoms.
+    # Split the input string into a list of keywords
+    search_keywords = [keyword.strip().lower() for keyword in symptoms.replace(' and ', ',').split(',')]
     for product in TCM_PRODUCTS:
         product_used_for = product["Used For"].lower()
         # Check if any of the keywords are present in the 'Used For' string
