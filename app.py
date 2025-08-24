@@ -124,6 +124,16 @@ def get_product_info(symptoms: str) -> str:
     # Split the input string into a list of keywords
     search_keywords = [keyword.strip().lower() for keyword in symptoms.replace(' and ', ',').split(',')]
     
+    # Check for specific product names in the query to handle "tell me about"
+    product_names = [p["Product Name"].lower() for p in TCM_PRODUCTS]
+    for name in product_names:
+        if name in symptoms.lower():
+            # If a product name is found, search for it specifically.
+            for p in TCM_PRODUCTS:
+                if p["Product Name"].lower() == name:
+                    return f"Found the following product:\n- **{p['Product Name']}**: {p['Description']} (Used for: {p['Used For']})\n"
+    
+    # If no specific product name is found, fall back to searching by symptoms.
     for product in TCM_PRODUCTS:
         product_used_for = product["Used For"].lower()
         # Check if any of the keywords are present in the 'Used For' string
@@ -156,7 +166,6 @@ def create_agent_system():
     """Create and configure all agents for the TCM shop."""
     
     # Define the model to use. You can change this to "gpt-4o-mini" or any other model name.
-    # The model parameter has been removed from the Agent constructor to fix the TypeError.
     
     # The Product Agent uses our hardcoded product data via a Python tool.
     product_agent = Agent(
