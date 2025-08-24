@@ -116,115 +116,62 @@ def general_answer(q:str)->str:
     if "contact" in t or "phone" in t or "email" in t: return c
     return "\n".join([h,l,s,c])
 
-def send_via_sendgrid(name, email, query_type, message) -> str:
-    """
-    Send owner notification (plain text) + client acknowledgement (HTML) via SendGrid API.
-    Requires SENDGRID_API_KEY, EMAIL_FROM, EMAIL_TO in secrets.
-    """
-    if not (SENDGRID_API_KEY and EMAIL_FROM and EMAIL_TO):
-        raise RuntimeError("SendGrid not configured. Please set SENDGRID_API_KEY, EMAIL_FROM, EMAIL_TO in secrets.")
+def send_via_sendgrid(name, email, query_type, message):
+    """Owner (plain) + Client (HTML) via SendGrid; returns detailed status + shows error body."""
+    import requests
+    api_key = st.secrets["SENDGRID_API_KEY"].strip()
+    from_email = st.secrets["EMAIL_FROM"].strip()
+    to_owner = st.secrets["EMAIL_TO"].strip()
 
-    from_email = EMAIL_FROM
-    to_owner = EMAIL_TO
-
-    # Owner email (plain text)
     owner_subject = f"[New Lead] {query_type} — {name}"
     owner_text = (
         "New client query received\n\n"
-        f"Name: {name}\n"
-        f"Email: {email}\n"
-        f"Type: {query_type}\n"
-        f"Message:\n{message}\n\n"
-        f"Time: {datetime.now().isoformat(timespec='seconds')}"
+        f"Name: {name}\nEmail: {email}\nType: {query_type}\nMessage:\n{message}\n"
+        f"\nTime: {datetime.now().isoformat(timespec='seconds')}"
     )
 
-    # Client email (HTML + text fallback)
     client_subject = f"We received your query: {query_type}"
     client_text = (
-        f"Hi {name or 'there'},\n\n"
-        "Thanks for reaching out! We received your message and will reply soon.\n\n"
-        f"Type: {query_type}\n"
-        f"Message: {message}\n\n"
-        f"— {BRAND_NAME}"
+        f"Hi {name or 'there'},\n\nThanks for reaching out! We received your message."
+        f"\n\nType: {query_type}\nMessage: {message}\n\n— Better For Today"
     )
-
-    # IMPORTANT: double braces {{ }} in CSS to avoid f-string formatting issues
-    client_html = f"""
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>We received your query</title>
-  <style>
-    body {{ margin:0; padding:0; background:#f7f7f8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }}
-    .wrap {{ max-width:640px; margin:0 auto; padding:24px; }}
-    .card {{ background:#ffffff; border-radius:14px; padding:28px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }}
-    .brand {{ display:flex; align-items:center; gap:12px; font-weight:700; font-size:18px; color:{BRAND_PRIMARY}; }}
-    .tag {{ display:inline-block; font-size:12px; background:#e8f5ee; color:{BRAND_PRIMARY}; padding:4px 8px; border-radius:999px; margin-left:8px; }}
-    h1 {{ font-size:20px; margin:18px 0 6px; }}
-    p {{ font-size:14px; line-height:1.6; color:#333; margin:0 0 12px; }}
-    .box {{ background:#fafafa; border:1px solid #eee; border-radius:10px; padding:12px 14px; white-space:pre-wrap; }}
-    .cta {{ margin-top:18px; }}
-    .btn {{ display:inline-block; background:{BRAND_PRIMARY}; color:#fff !important; text-decoration:none; padding:10px 16px; border-radius:10px; font-weight:600; }}
-    .meta {{ font-size:12px; color:#666; margin-top:16px; }}
-    .footer {{ text-align:center; font-size:12px; color:#888; margin-top:22px; }}
-    img.logo {{ height:28px; width:auto; border-radius:6px; }}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="card">
-      <div class="brand">
-        {"<img class='logo' src='" + LOGO_URL + "' alt='logo' />" if LOGO_URL else "🌿"}
-        <span>{BRAND_NAME}</span>
-        <span class="tag">{BRAND_TAG}</span>
-      </div>
-
-      <h1>Thanks, {(name or 'there')} — we received your message</h1>
-      <p>We’ll reply as soon as possible. Here’s a quick summary of what you sent:</p>
-
-      <p><strong>Query type:</strong> {query_type}</p>
-      <p><strong>Your email:</strong> {email}</p>
-      <p><strong>Your message:</strong></p>
-      <div class="box">{(message or '').strip()}</div>
-
-      <div class="cta">
-        <a class="btn" href="{SITE_URL}/book-a-consultation" target="_blank" rel="noopener">Book a consultation</a>
-      </div>
-
-      <p class="meta">
-        If you didn’t submit this, please ignore this email.
-      </p>
-    </div>
-
-    <div class="footer">
-      © {datetime.now().year} {BRAND_NAME} · {ADDRESS} · {CONTACT_EMAIL}
-    </div>
-  </div>
-</body>
-</html>
-""".strip()
+    client_html = f"""<!doctype html><html><body>
+    <p>Hi {name or 'there'},</p><p>We received your message.</p>
+    <p><b>Type:</b> {query_type}<br><b>Message:</b> {(message or '').strip()}</p>
+    <p>— Better For Today</p></body></html>"""
 
     def _send(to_email, subject, text, html=None):
-        content = [{"type": "text/plain", "value": text}]
+        payload = {
+            "personalizations": [{"to": [{"email": to_email.strip()}]}],
+            "from": {"email": from_email},
+            "subject": subject,
+            "content": [{"type": "text/plain", "value": text}],
+        }
         if html:
-            content.append({"type": "text/html", "value": html})
+            payload["content"].append({"type": "text/html", "value": html})
+
         r = requests.post(
             "https://api.sendgrid.com/v3/mail/send",
-            headers={"Authorization": f"Bearer {SENDGRID_API_KEY}", "Content-Type": "application/json"},
-            json={
-                "personalizations": [{"to": [{"email": to_email}]}],
-                "from": {"email": from_email},
-                "subject": subject,
-                "content": content
-            },
+            headers={"Authorization": f"Bearer {api_key}",
+                     "Content-Type": "application/json"},
+            json=payload,
             timeout=10
         )
-        return r.status_code
+        try:
+            body = r.json()
+        except Exception:
+            body = r.text
+        return r.status_code, body
 
-    sc_owner = _send(to_owner, owner_subject, owner_text)                         # plain text
-    sc_client = _send(email, client_subject, client_text, html=client_html)       # text + HTML
-    return "ok" if sc_owner in (200, 202) and sc_client in (200, 202) else f"owner:{sc_owner}, client:{sc_client}"
+    o_code, o_body = _send(to_owner, owner_subject, owner_text)
+    c_code, c_body = _send(email, client_subject, client_text, html=client_html)
+
+    if o_code not in (200, 202):
+        st.warning(f"Owner email error {o_code}: {str(o_body)[:400]}")
+    if c_code not in (200, 202):
+        st.warning(f"Client email error {c_code}: {str(c_body)[:400]}")
+
+    return "ok" if o_code in (200, 202) and c_code in (200, 202) else f"owner:{o_code}, client:{c_code}"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # UI
