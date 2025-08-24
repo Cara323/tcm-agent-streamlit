@@ -63,15 +63,43 @@ TCM_PRODUCTS = [
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
-def get_product_info(q: str)->str:
-    ql = q.lower()
+def get_product_info(q: str) -> str:
+    lower = q.lower()
+
+    # Exact product name match first
     for p in TCM_PRODUCTS:
-        if p["Product Name"].lower() in ql:
-            return f"- **{p['Product Name']}**: {p['Description']} (Used for: {p['Used For']})"
+        if p["Product Name"].lower() in lower:
+            return (
+                f"**{p['Product Name']}**\n\n"
+                f"{p['Description']}\n\n"
+                f"Used For: {p['Used For']}\n\n"
+                "Let me know if you'd like to book a consultation or hear more!"
+            )
+
+    # Keyword matching fallback
     kws = [k.strip().lower() for k in q.replace(" and ", ",").split(",")]
-    matches = [p for p in TCM_PRODUCTS if any(k and k in p["Used For"].lower() for k in kws)]
-    if not matches: return "No products found."
-    return "\n".join([f"- **{p['Product Name']}**: {p['Description']} (Used for: {p['Used For']})" for p in matches])
+    matching = [
+        p for p in TCM_PRODUCTS
+        if any(k and k in p["Used For"].lower() for k in kws)
+    ]
+
+    if matching:
+        response = "Here are products that may help:\n\n"
+        response += "\n".join(
+            f"- **{p['Product Name']}**: {p['Description']} (Used for: {p['Used For']})"
+            for p in matching
+        )
+        return response
+
+    # Final fallback: show all
+    return (
+        "Sorry, there was no perfect match. Here's our full product list:\n\n" +
+        "\n".join(
+            f"- **{p['Product Name']}**: {p['Used For']}"
+            for p in TCM_PRODUCTS
+        )
+    )
+
 
 def booking_link() -> str:
     return f"Book your consultation here: {SITE_URL}/book-a-consultation"
