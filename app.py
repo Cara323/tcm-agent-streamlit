@@ -58,12 +58,11 @@ async def Run(agent: Agent, conversation_history: str):
     
     input_lower = conversation_history.lower()
     
-    # Improved logic to detect various ways of asking about products
-    # This now correctly handles product names and symptoms.
-    product_keywords = ["product", "dampness", "insomnia", "cold hands", "recommend", "fatigue", "circulation", "tea", "soak", "patch", "soup", "herbal"]
-    product_names_in_query = any(name.lower() in input_lower for name in [p["Product Name"] for p in TCM_PRODUCTS])
+    # Check for specific product names or a broad product-related query
+    product_keywords = ["product", "recommend", "remedy", "what do you have for"]
+    product_names = [p["Product Name"].lower() for p in TCM_PRODUCTS]
 
-    if any(keyword in input_lower for keyword in product_keywords) or product_names_in_query:
+    if any(keyword in input_lower for keyword in product_keywords) or any(name in input_lower for name in product_names):
         return type('obj', (object,), {'final_output': "ProductAgent"})
     
     # Check for consultation-related keywords
