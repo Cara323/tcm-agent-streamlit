@@ -155,6 +155,9 @@ def redirect_to_booking_page(url: str) -> str:
 def create_agent_system():
     """Create and configure all agents for the TCM shop."""
     
+    # Define the model to use. You can change this to "gpt-4o-mini" or any other model name.
+    # The model parameter has been removed from the Agent constructor to fix the TypeError.
+    
     # The Product Agent uses our hardcoded product data via a Python tool.
     product_agent = Agent(
         name="ProductAgent",
@@ -324,7 +327,7 @@ def main():
     """Main Streamlit application."""
     st.set_page_config(
         page_title="TCM Shop Assistant",
-        page_icon="�",
+        page_icon="🌿",
         layout="wide",
         initial_sidebar_state="expanded"
     )
@@ -367,4 +370,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-�
